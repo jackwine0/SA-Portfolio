@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 import emailjs from "@emailjs/browser";
 import { OWNER } from "../data/portfolio";
-import { EMAILJS_CONFIG, isEmailjsConfigured } from "../config/emailjs"; // Make sure this path is correct
+import { EMAILJS_CONFIG, isEmailjsConfigured } from "../config/emailjs";
 import "./Contact.css";
 
 const STATUS_LABEL = {
@@ -11,10 +11,6 @@ const STATUS_LABEL = {
   error:   "Try again",
 };
 
-// Normalizes whatever shape EmailJS (or a network failure) throws
-// into a single readable string. EmailJS errors can arrive as
-// { status, text }, a plain Error, or a bare string depending on
-// the failure point, so every shape is checked explicitly.
 function extractErrorMessage(err) {
   if (!err) return "Something went wrong. Please try again.";
   if (typeof err === "string") return err;
@@ -27,6 +23,13 @@ const Contact = () => {
   const formRef = useRef(null);
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  
+  // Track individual field errors
+  const [fieldErrors, setFieldErrors] = useState({
+    from_name: "",
+    from_email: "",
+    message: ""
+  });
 
   // Initialize EmailJS with your public key
   React.useEffect(() => {
@@ -35,11 +38,51 @@ const Contact = () => {
     }
   }, []);
 
+  // Clears a field's error message as soon as the user starts correcting it
+  const handleInputChange = useCallback((e) => {
+    const { name } = e.target;
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  }, [fieldErrors]);
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setErrorMsg("");
+    
+    // 1. Reset and Validate Fields Individual Boxes
+    const errors = { from_name: "", from_email: "", message: "" };
+    let hasErrors = false;
 
-    // Fail fast and visibly if credentials were never filled in
+    const form = formRef.current;
+    
+    // Check Name
+    if (!form.from_name.value.trim()) {
+      errors.from_name = "Please enter your name.";
+      hasErrors = true;
+    }
+    
+    // Check Email
+    if (!form.from_email.value.trim()) {
+      errors.from_email = "Please enter your email address.";
+      hasErrors = true;
+    } else if (!form.from_email.checkValidity()) {
+      errors.from_email = "Please enter a valid email address (e.g., name@example.com).";
+      hasErrors = true;
+    }
+    
+    // Check Message
+    if (!form.message.value.trim()) {
+      errors.message = "Please enter a message.";
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    // 2. Fail fast if backend credentials are missing
     if (!isEmailjsConfigured) {
       setStatus("error");
       setErrorMsg(
@@ -51,16 +94,16 @@ const Contact = () => {
     setStatus("sending");
 
     try {
-      // The correct way to use sendForm with v3+
       const result = await emailjs.sendForm(
         EMAILJS_CONFIG.SERVICE_ID,
         EMAILJS_CONFIG.TEMPLATE_ID,
-        formRef.current
+        form
       );
       
       console.log("Email sent successfully:", result);
       setStatus("sent");
-      formRef.current.reset();
+      form.reset();
+      setFieldErrors({ from_name: "", from_email: "", message: "" });
       setTimeout(() => setStatus("idle"), 5000);
     } catch (err) {
       console.error("EmailJS send failed:", err);
@@ -96,7 +139,9 @@ const Contact = () => {
           </div>
 
           <form ref={formRef} onSubmit={handleSubmit} className="contact__form" noValidate>
-            <div className="contact__field">
+            
+            {/* NAME FIELD */}
+            <div className={`contact__field${fieldErrors.from_name ? " has-error" : ""}`}>
               <label htmlFor="from_name">Name</label>
               <input
                 id="from_name"
@@ -104,12 +149,20 @@ const Contact = () => {
                 type="text"
                 required
                 aria-required="true"
+                aria-describedby={fieldErrors.from_name ? "from_name_error" : undefined}
                 disabled={isDisabled}
                 autoComplete="name"
+                onChange={handleInputChange}
               />
+              {fieldErrors.from_name && (
+                <p id="from_name_error" className="contact__field-error" role="alert">
+                  {fieldErrors.from_name}
+                </p>
+              )}
             </div>
 
-            <div className="contact__field">
+            {/* EMAIL FIELD */}
+            <div className={`contact__field${fieldErrors.from_email ? " has-error" : ""}`}>
               <label htmlFor="from_email">Email</label>
               <input
                 id="from_email"
@@ -117,12 +170,20 @@ const Contact = () => {
                 type="email"
                 required
                 aria-required="true"
+                aria-describedby={fieldErrors.from_email ? "from_email_error" : undefined}
                 disabled={isDisabled}
                 autoComplete="email"
+                onChange={handleInputChange}
               />
+              {fieldErrors.from_email && (
+                <p id="from_email_error" className="contact__field-error" role="alert">
+                  {fieldErrors.from_email}
+                </p>
+              )}
             </div>
 
-            <div className="contact__field">
+            {/* MESSAGE FIELD */}
+            <div className={`contact__field${fieldErrors.message ? " has-error" : ""}`}>
               <label htmlFor="message">Message</label>
               <textarea
                 id="message"
@@ -130,10 +191,18 @@ const Contact = () => {
                 rows={5}
                 required
                 aria-required="true"
+                aria-describedby={fieldErrors.message ? "message_error" : undefined}
                 disabled={isDisabled}
+                onChange={handleInputChange}
               />
+              {fieldErrors.message && (
+                <p id="message_error" className="contact__field-error" role="alert">
+                  {fieldErrors.message}
+                </p>
+              )}
             </div>
 
+            {/* GENERAL FORM STATUS ALERTS */}
             {status === "error" && errorMsg && (
               <p className="contact__alert contact__alert--error" role="alert" aria-live="assertive">
                 {errorMsg}

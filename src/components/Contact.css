@@ -121,6 +121,21 @@
   flex-shrink: 0;
 }
 
+/* Inline Box Error Handling Styles */
+.contact__field.has-error input,
+.contact__field.has-error textarea {
+  border-bottom-color: #A12C2C;
+}
+
+.contact__field-error {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #A12C2C;
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
 @keyframes contact-spin {
   to { transform: rotate(360deg); }
 }
